@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Audio Classifier</title>
+  <style>
+    :root {
+      --bg: #0f172a;          /* slate-900 */
+      --panel: #111827;       /* gray-900 */
+      --panel-2: #1f2937;     /* gray-800 */
+      --text: #e5e7eb;        /* gray-200 */
+      --muted: #9ca3af;       /* gray-400 */
+      --accent: #22c55e;      /* green-500 */
+      --accent-2: #3b82f6;    /* blue-500 */
+      --danger: #ef4444;      /* red-500 */
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: radial-gradient(1200px 800px at 10% -10%, #1e293b 0%, var(--bg) 40%),
+                  radial-gradient(1000px 600px at 110% 10%, #0b1220 0%, var(--bg) 40%);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .app {
+      width: min(880px, 100%);
+      background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 24px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      padding: 28px;
+      backdrop-filter: blur(10px);
+    }
+
+    .header {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      margin-bottom: 20px;
+    }
+    .title {
+      font-size: 1.6rem; font-weight: 700; letter-spacing: 0.2px;
+    }
+    .subtitle { color: var(--muted); font-size: 0.95rem; }
+
+    .uploader {
+      margin-top: 10px;
+      background: var(--panel);
+      border: 2px dashed rgba(255,255,255,0.12);
+      border-radius: 18px;
+      padding: 24px;
+    }
+
+    .dropzone {
+      display: grid; place-items: center; text-align: center; gap: 12px;
+      padding: 28px; border-radius: 16px;
+      transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+      cursor: pointer;
+      user-select: none;
+    }
+    .dropzone:hover { transform: translateY(-1px); }
+    .dropzone.dragover {
+      border-color: var(--accent-2);
+      background: rgba(59,130,246,0.08);
+    }
+
+    .controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; justify-content: center; margin-top: 12px; }
+    .btn {
+      appearance: none; border: 1px solid rgba(255,255,255,0.14);
+      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+      color: var(--text); padding: 10px 14px; border-radius: 12px;
+      font-weight: 600; letter-spacing: 0.2px; cursor: pointer;
+      transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+    }
+    .btn:hover { transform: translateY(-1px); border-color: rgba(255,255,255,0.25); box-shadow: 0 8px 20px rgba(0,0,0,0.25); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    .file-name { color: var(--muted); font-size: 0.9rem; }
+
+    .preview {
+      background: var(--panel-2); border-radius: 16px; padding: 16px; margin-top: 16px;
+      display: grid; gap: 10px;
+    }
+
+    .result {
+      margin-top: 18px; padding: 16px; border-radius: 14px;
+      background: rgba(34,197,94,0.1);
+      border: 1px solid rgba(34,197,94,0.25);
+      display: none;
+    }
+    .result .label { font-size: 1.05rem; }
+
+    .error {
+      margin-top: 18px; padding: 14px; border-radius: 14px;
+      background: rgba(239,68,68,0.08);
+      border: 1px solid rgba(239,68,68,0.25);
+      color: #fecaca;
+      display: none;
+    }
+
+    .loader { display: none; align-items: center; gap: 10px; justify-content: center; margin-top: 10px; }
+    .spinner {
+      width: 18px; height: 18px; border: 3px solid rgba(255,255,255,0.25); border-top-color: white;
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+
+    footer { margin-top: 22px; color: var(--muted); font-size: 0.85rem; text-align: center; }
+    code.tag { background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.12); }
+  </style>
+</head>
+<body>
+  <main class="app" role="main">
+    <div class="header">
+      <div>
+        <div class="title">Audio Classifier</div>
+        <div class="subtitle">Upload or record an <strong>MP3</strong>/<strong>WAV</strong> and get a prediction.</div>
+      </div>
+    </div>
+
+    <section class="uploader">
+      <label class="dropzone" id="dropzone" for="file-input">
+        <div>
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 16V4m0 12l-3-3m3 3l3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M20 16.5a4.5 4.5 0 01-4.5 4.5H8A5 5 0 018 6c.3 0 .6.02.9.06A6 6 0 1120 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div>
+          <div style="font-weight:700; margin-bottom:4px;">Drop audio here or click to browse</div>
+          <div class="file-name" id="file-name">MP3 or WAV • Max 25 MB</div>
+        </div>
+      </label>
+      <input id="file-input" type="file" accept="audio/*,.mp3,.wav" style="display:none" />
+
+      <div class="controls">
+        <button id="record-btn" class="btn" type="button">🎙️ Record</button>
+        <button id="stop-btn" class="btn" type="button" disabled>Stop</button>
+        <button id="clear-btn" class="btn" type="button">Clear</button>
+        <button id="predict-btn" class="btn" type="button" disabled>Predict</button>
+      </div>
+
+      <div class="preview" id="preview" hidden>
+        <div style="font-weight:600;">Preview</div>
+        <audio id="audio" controls></audio>
+      </div>
+
+      <div class="loader" id="loader">
+        <div class="spinner" aria-hidden="true"></div>
+        <div>Analyzing audio…</div>
+      </div>
+
+      <div class="result" id="result">
+        <div class="label">Prediction: <strong id="pred-label">—</strong></div>
+      </div>
+
+      <div class="error" id="error" role="alert"></div>
+    </section>
+
+    <footer>
+      Endpoint: <code class="tag">POST /predict</code> with FormData key <code class="tag">audio</code>
+    </footer>
+  </main>
+
+  <script>
+    const fileInput = document.getElementById('file-input');
+    const dropzone = document.getElementById('dropzone');
+    const fileName = document.getElementById('file-name');
+    const audio = document.getElementById('audio');
+    const preview = document.getElementById('preview');
+    const predictBtn = document.getElementById('predict-btn');
+    const clearBtn = document.getElementById('clear-btn');
+    const recordBtn = document.getElementById('record-btn');
+    const stopBtn = document.getElementById('stop-btn');
+    const loader = document.getElementById('loader');
+    const result = document.getElementById('result');
+    const predLabel = document.getElementById('pred-label');
+    const errorBox = document.getElementById('error');
+
+    const MAX_SIZE_BYTES = 25 * 1024 * 1024;
+    const ALLOWED_EXTS = ['mp3','wav'];
+
+    let recordedFile = null;
+    let mediaRecorder;
+    let chunks = [];
+
+    function resetUI() {
+      audio.src = '';
+      preview.hidden = true;
+      predictBtn.disabled = true;
+      loader.style.display = 'none';
+      result.style.display = 'none';
+      errorBox.style.display = 'none';
+      predLabel.textContent = '—';
+      fileName.textContent = 'MP3 or WAV • Max 25 MB';
+      recordedFile = null;
+    }
+
+    function setError(msg) {
+      errorBox.textContent = msg;
+      errorBox.style.display = 'block';
+    }
+
+    function validateFile(file) {
+      if (!file) return 'No file selected.';
+      if (file.size > MAX_SIZE_BYTES) return 'File is too large. Please keep it under 25 MB.';
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      if (!ALLOWED_EXTS.includes(ext) && !file.type.startsWith('audio/')) return 'Unsupported format. Please upload an MP3 or WAV file.';
+      return null;
+    }
+
+    function setFile(file) {
+      const err = validateFile(file);
+      if (err) { setError(err); predictBtn.disabled = true; return; }
+      errorBox.style.display = 'none';
+      fileName.textContent = file.name || 'Recorded Audio';
+      const url = URL.createObjectURL(file);
+      audio.src = url;
+      preview.hidden = false;
+      predictBtn.disabled = false;
+      recordedFile = file;
+    }
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      setFile(file);
+    });
+
+    ;['dragenter','dragover'].forEach(evt => dropzone.addEventListener(evt, (e) => {
+      e.preventDefault(); e.stopPropagation(); dropzone.classList.add('dragover');
+    }));
+    ;['dragleave','drop'].forEach(evt => dropzone.addEventListener(evt, (e) => {
+      e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('dragover');
+    }));
+    dropzone.addEventListener('drop', (e) => {
+      const file = e.dataTransfer.files && e.dataTransfer.files[0];
+      fileInput.files = e.dataTransfer.files;
+      setFile(file);
+    });
+
+    dropzone.addEventListener('click', () => fileInput.click());
+
+    clearBtn.addEventListener('click', () => {
+      fileInput.value = '';
+      resetUI();
+    });
+
+    // Recording controls
+    recordBtn.addEventListener('click', async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        chunks = [];
+        mediaRecorder.ondataavailable = e => chunks.push(e.data);
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(chunks, { type: 'audio/wav' });
+          const file = new File([blob], 'recording.wav', { type: 'audio/wav' });
+          setFile(file);
+        };
+        mediaRecorder.start();
+        recordBtn.disabled = true;
+        stopBtn.disabled = false;
+      } catch (err) {
+        setError('Microphone access denied.');
+      }
+    });
+
+    stopBtn.addEventListener('click', () => {
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+        recordBtn.disabled = false;
+        stopBtn.disabled = true;
+      }
+    });
+
+    predictBtn.addEventListener('click', async () => {
+      const file = recordedFile || (fileInput.files && fileInput.files[0]);
+      const err = validateFile(file);
+      if (err) { setError(err); return; }
+
+      loader.style.display = 'flex';
+      result.style.display = 'none';
+      errorBox.style.display = 'none';
+
+      try {
+        const formData = new FormData();
+        formData.append('audio', file);
+
+        const res = await fetch("http://127.0.0.1:5000/predict", {
+  method: "POST",
+  body: formData
+});
+
+
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`Server responded with ${res.status}. ${text || ''}`);
+        }
+        const data = await res.json();
+        predLabel.textContent = data.prediction ?? 'Unknown';
+        result.style.display = 'block';
+      } catch (err) {
+        console.error(err);
+        setError(err.message || 'Error contacting server.');
+      } finally {
+        loader.style.display = 'none';
+      }
+    });
+
+    resetUI();
+  </script>
+</body>
+</html>
